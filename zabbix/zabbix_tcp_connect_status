@@ -1,0 +1,39 @@
+vim zabbix_tcp_connect_status.sh
+#!/bin/bash
+LISTEN() {
+    ss -an |grep '^tcp' | grep 'LISTEN'|wc -l
+}
+
+ESTABLISHED() {
+    ss -an |grep '^tcp' | grep 'ESTAB'|wc -l
+}
+
+TIME_WAIT() {
+    ss -an |grep '^tcp' | grep 'TIME[_-]WAIT'|wc -l
+}
+
+CLOSED() {
+    ss -an |grep '^tcp' | grep 'CLOSED'|wc -l
+}
+
+FIN_WAIT1() {
+    ss -an |grep '^tcp' | grep 'FIN WAIT1'|wc -l
+}
+
+FIN_WAIT2() {
+    ss -an |grep '^tcp' | grep 'FIN_WAIT2'|wc -l
+}
+
+CLOSE_WAIT() {
+    ss -an |grep '^tcp' | grep 'CLOSE WAIT'|wc -l
+}
+
+LAST_ACK() {
+    ss -an |grep '^tcp' | grep 'LAST ACK'|wc -l
+}
+
+SYN_RECV() {
+    ss -an |grep '^tcp' | grep 'SYN[_-]RECV'|wc -l
+}
+
+$1
