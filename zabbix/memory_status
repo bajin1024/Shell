@@ -1,0 +1,42 @@
+#!/bin/bash
+MemTotal() {
+    awk '/^MemTotal/{print $2}' /etc/procmeminfo
+}
+
+MemFree() {
+    awk '/^MemFree/{print $2}' /etc/procmeminfo
+}
+
+Buffers() {
+    awk '/^Buffers/{print $2}' /etc/procmeminfo
+}
+
+Dirty() {
+    awk '/^Dirty/{print $2}' /etc/procmeminfo
+}
+
+Cached() {
+    awk '/^Cached/{print $2}' /etc/procmeminfo
+}
+
+SwapCached() {
+    awk '/^SwapCached/{print $2}' /etc/procmeminfo
+}
+
+Active() {
+    awk '/^Active/{print $2}' /etc/procmeminfo
+}
+
+Inactive() {
+    awk '/^Inactive/{print $2}' /etc/procmeminfo
+}
+
+SwapTotal() {
+    awk '/^SwapTotal/{print $2}' /etc/procmeminfo
+}
+
+SwapFree() {
+    awk '/^SwapFree/{print $2}' /etc/procmeminfo
+}
+
+$1
