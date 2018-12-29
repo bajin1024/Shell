@@ -1,0 +1,6 @@
+#!/bin/bash
+cd /tmp/down
+for project in `ls /svn/`
+do
+  svn co svn://172.16.202.8/svn/$project --username zhipeng --password zxc123
+done
