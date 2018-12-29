@@ -1,0 +1,15 @@
+#!/bin/bash
+read -p  "请输入sftp账号/密码：" name password
+cd /data/sftp
+mkdir $name 
+useradd $name  -s /sbin/nologin -d /data/sftp/$name -g 501
+echo $password | passwd --stdin $name
+chmod 755 $name
+chown root.root $name
+cd $name
+mkdir check
+chown -R $name.root check
+passwd -x 9999 $name
+sed -i '$a\Match user  '"$name"'\n  ChrootDirectory /data/sftp/'"$name"'\n  ForceCommand internal-sftp' /etc/ssh/sshd_config
+/etc/init.d/sshd restart
+cksum /etc/passwd
