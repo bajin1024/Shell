@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 read -p  "请输入sftp账号/密码：" name password
 cd /data/sftp
 mkdir $name 
