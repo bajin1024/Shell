@@ -1,0 +1,8 @@
+#!/bin/bash
+dataLogDir=/var/lib/zookeeper/version-2/
+zookeeperLogDir=/var/log/zookeeper/
+count=60
+count=$[$count+1]
+ls -t $dataLogDir/log.* | tail -n +$count | xargs rm -rf
+ls -t $dataLogDir/snapshot.* | tail -n +$count | xargs rm -rf
+ls -t $zookeeperLogDir/zookeeper.log.* | tail -n +$count | xargs rm -f
