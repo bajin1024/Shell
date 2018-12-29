@@ -1,0 +1,304 @@
+#!/bin/bash
+
+#get kernel version
+RELEASEVER=$(rpm -q --qf "%{VERSION}" $(rpm -q --whatprovides redhat-release))
+
+#configure yum source
+cd /etc/yum.repos.d/
+mkdir /etc/yum.repos.d/bak
+mv /etc/yum.repos.d/*.repo /etc/yum.repos.d/bak
+
+if [ $RELEASEVER == 6 ]; then
+    wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-6.repo
+    wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-6.repo
+fi
+
+if [ $RELEASEVER == 7 ]; then
+    wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+    wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-7.repo
+fi
+
+yum clean all
+yum check-update
+yum makecache fast
+
+# install base rpm package
+yum -y install nc vim iftop iotop dstat tcpdump
+yum -y install ipmitool bind-libs bind-utils
+yum -y install libselinux-python ntpdate
+
+# update rpm package include kernel
+yum -y update
+
+# SSH configure
+if [ $RELEASEVER == 6 ]; then
+    sed -i 's/#UseDNS yes/UseDNS no/' /etc/ssh/sshd_config
+	/etc/init.d/sshd restart
+fi
+if [ $RELEASEVER == 7 ]; then
+    sed -i 's/#UseDNS yes/UseDNS no/' /etc/ssh/sshd_config
+	systemctl restart sshd.service
+fi
+
+# update ulimit configure
+if [ $RELEASEVER == 6 ]; then
+    test -f /etc/security/limits.d/90-nproc.conf && rm -rf /etc/security/limits.d/90-nproc.conf && touch /etc/security/limits.d/90-nproc.conf
+fi
+if [ $RELEASEVER == 7 ]; then
+    test -f /etc/security/limits.d/20-nproc.conf && rm -rf /etc/security/limits.d/20-nproc.conf && touch /etc/security/limits.d/20-nproc.conf
+fi
+
+> /etc/security/limits.conf
+cat >> /etc/security/limits.conf << EOF
+ * soft nproc 65535
+ * hard nproc 65535
+ * soft nofile 65535
+ * hard nofile 65535
+EOF
+
+# set timezone
+test -f /etc/localtime && rm -rf /etc/localtime
+ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+# set LANG
+if [ $RELEASEVER == 6 ]; then
+    sed -i 's@LANG=.*$@LANG="en_US.UTF-8"@g' /etc/sysconfig/i18n
+fi
+if [ $RELEASEVER == 7 ]; then
+    sed -i 's@LANG=.*$@LANG="en_US.UTF-8"@g' /etc/locale.conf
+fi
+
+# update time
+if [ $RELEASEVER == 6 ]; then
+    /usr/sbin/ntpdate pool.ntp.org
+    grep -q ntpdate -b /var/spool/cron/root
+    if [ $? -ne 0 ];then
+       echo '*/5 * * * * /usr/sbin/ntpdate pool.ntp.org > /dev/null 2>&1' > /var/spool/cron/root
+       chmod 600 /var/spool/cron/root
+    fi
+    /etc/init.d/crond restart
+fi
+if [ $RELEASEVER == 7 ];then
+    yum install chrony -y
+    > /etc/chrony.conf
+cat > /etc/security/limits.conf <<EOF
+server pool.ntp.org iburst
+stratumweight 0
+driftfile /var/lib/chrony/drift
+rtcsync
+makestep 10 3
+bindcmdaddress 127.0.0.1
+bindcmdaddress ::1
+keyfile /etc/chrony.keys
+commandkey 1
+generatecommandkey
+noclientlog
+logchange 0.5
+logdir /var/log/chrony
+EOF
+  systemctl restart chronyd 
+  systemctl enable chronyd
+fi
+
+# clean iptables default rules
+if [ $RELEASEVER == 6 ]; then
+    /sbin/iptables -F
+    service iptables save
+    chkconfig ip6tables off
+fi
+if [ $RELEASEVER == 7 ]; then
+   systemctl disable firewalld
+fi
+
+# disable unused service
+if [ $RELEASEVER == 6 ]; then
+chkconfig auditd off
+fi
+
+if [ $RELEASEVER == 7 ]; then
+service auditd stop
+fi
+
+# delete User and groups
+if [ $RELEASEVER == 6 ]; then
+userdel adm
+userdel lp
+userdel sync
+userdel shutdown
+userdel halt
+userdel operator
+userdel games
+userdel ftp
+userdel gopher
+userdel uucp
+groupdel adm
+groupdel lp
+groupdel uucp
+groupdel dip
+groupdel games
+fi
+
+if [ $RELEASEVER == 7 ]; then
+userdel adm
+userdel lp
+userdel sync
+userdel shutdown
+userdel halt
+userdel operator
+userdel games
+userdel ftp
+groupdel adm
+groupdel lp
+groupdel games
+fi
+
+# disable ipv6
+cd /etc/modprobe.d/ && touch ipv6.conf
+> /etc/modprobe.d/ipv6.conf
+cat >> /etc/modprobe.d/ipv6.conf << EOF
+alias net-pf-10 off
+alias ipv6 off
+EOF
+
+# disable iptable nat moudule
+cd /etc/modprobe.d/ && touch connectiontracking.conf
+> /etc/modprobe.d/connectiontracking.conf
+cat >> /etc/modprobe.d/connectiontracking.conf << EOF
+install nf_nat /bin/true
+install xt_state /bin/true
+install iptable_nat /bin/true
+install nf_conntrack /bin/true
+install nf_defrag_ipv4 /bin/true
+install nf_conntrack_ipv4 /bin/true
+install nf_conntrack_ipv6 /bin/true
+EOF
+
+# disable SELINUX
+setenforce 0
+sed -i 's/^SELINUX=.*$/SELINUX=disabled/' /etc/selinux/config
+
+# update record command
+sed -i 's/^HISTSIZE=.*$/HISTSIZE=100000/' /etc/profile
+
+# install dsnmasq and update config
+#yum install dnsmasq
+#> /etc/dnsmasq
+#cat >> /etc/dnsmasq.conf << EOF
+#listen-address=127.0.0.1
+#no-dhcp-interface=lo
+#log-queries
+#log-facillity=/var/log/dnsmasq.log
+#all-servers
+#no-negcache
+#cache-size=1024
+#dns-forward-max=512
+#EOF
+
+#if [ $RELEASEVER == 6 ]; then
+#   /etc/init.d/dnsmasq restart
+#fi
+
+#if [ $RELEASEVER == 7 ]; then
+#   systemctl restart dnsmasq
+#   systemctl enable dnsmasq
+#fi
+
+# update /etc/resolv.conf
+#> /etc/resolv.conf
+#cat >> /etc/resolv.conf << EOF
+#search xxx.com
+#options timeout:1
+#nameserver 127.0.0.1
+#nameserver 114.114.114.114
+#EOF
+
+# update /etc/sysctl.conf
+if [ $RELEASEVER == 6 ]; then
+sed -i 's/net.ipv4.tcp_syncookies.*/net.ipv4.tcp_syncookies = 1/g' /etc/sysctl.conf
+cat >> /etc/sysctl.conf << EOF
+kernel.core_uses_pid = 1
+kernel.core_pattern = /tmp/core-%e-%p
+fs.suid_dumpable = 2
+net.ipv4.tcp_tw_resuse = 1
+net.ipv4.tcp_tw_recycle = 0
+net.ipv4.tcp_timestamps = 1
+net.ipv4.ip_forward = 0
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.default.accept_source_route = 0
+kernel.sysrq = 0
+kernel.core_uses_pid = 1
+net.ipv4.tcp_syncookies = 1
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_rmem = 4096    87380   4194304
+net.ipv4.tcp_wmem = 4096    16384   4194304
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.netdev_max_backlog = 262144
+net.core.somaxconn = 262144
+net.ipv4.tcp_max_orphans = 3276800
+net.ipv4.tcp_max_syn_backlog = 262144
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_mem = 94500000 915000000 927000000
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 30
+net.ipv4.ip_local_port_range = 1024    65535
+EOF
+
+shmmax=`free -l |grep Mem |awk '{printf("%d\n",$2*1024*0.9)}'`
+shmall=$[$shmmax/4]
+echo "kernel.shmmax = "$shmmax >> /etc/sysctl.conf
+echo "kernel.shmall = "$shmall >> /etc/sysctl.conf
+fi
+
+if [ $RELEASEVER == 7 ]; then
+cat >> /usr/lib/sysctl.d/00-system.conf << EOF
+kernel.core_uses_pid = 1
+kernel.core_pattern = /tmp/core-%e-%p
+fs.suid_dumpable = 2
+net.ipv4.tcp_tw_resuse = 1
+net.ipv4.tcp_tw_recycle = 0
+net.ipv4.tcp_timestamps = 1
+net.ipv4.ip_forward = 0
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.default.accept_source_route = 0
+kernel.sysrq = 0
+kernel.core_uses_pid = 1
+net.ipv4.tcp_syncookies = 1
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_rmem = 4096    87380   4194304
+net.ipv4.tcp_wmem = 4096    16384   4194304
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.netdev_max_backlog = 262144
+net.core.somaxconn = 262144
+net.ipv4.tcp_max_orphans = 3276800
+net.ipv4.tcp_max_syn_backlog = 262144
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_mem = 94500000 915000000 927000000
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 30
+net.ipv4.ip_local_port_range = 1024    65535
+EOF
+
+shmmax=`free -l |grep Mem |awk '{printf("%d\n",$2*1024*0.9)}'`
+shmall=$[$shmmax/4]
+echo "kernel.shmmax = "$shmmax >> /usr/lib/sysctl.d/00-system.conf
+echo "kernel.shmall = "$shmall >> /usr/lib/sysctl.d/00-system.conf
+fi
+
+sysctl -p
