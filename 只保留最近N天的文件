@@ -1,0 +1,3 @@
+ls -t /data/*.tar.gz |awk 'NR>2' |xargs rm -rf
+或
+ls -t /data/*.tar.gz |awk 'NR>0 {print "rm -f "$0}'|bash
