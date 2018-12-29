@@ -1,4 +1,3 @@
-vim zabbix_tcp_connect_status.sh
 #!/bin/bash
 LISTEN() {
     ss -an |grep '^tcp' | grep 'LISTEN'|wc -l
