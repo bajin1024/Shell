@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 dataLogDir=/var/lib/zookeeper/version-2/
 zookeeperLogDir=/var/log/zookeeper/
 count=60
