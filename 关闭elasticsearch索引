@@ -1,0 +1,4 @@
+#!/bin/bash
+DATE=$(date -d "30 days ago" +%Y.%m.%d)
+Hostname=$(hostname)
+curl -XPOST http://$Hostname:9200/*-$DATE/_close
