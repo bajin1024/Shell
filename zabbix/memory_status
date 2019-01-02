@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 MemTotal() {
     awk '/^MemTotal/{print $2}' /etc/procmeminfo
 }
