@@ -1,0 +1,30 @@
+#!/bin/bash
+read -p "input disk size: "  Size
+Disk=$(fdisk -l |grep "Disk /dev/" |awk -F ':' '{print $1}'|grep -Ev "swap|root"|tail -1 |awk '{print$2}')
+echo $Disk
+sleep 5
+pvcreate $Disk
+if [ $? -ne 0 ]
+    then 
+       exit
+fi
+VG=$(vgdisplay |grep "VG Name" |awk '{print $3}')
+vgextend $VG $Disk
+if [ $? -ne 0 ]
+    then 
+       exit
+fi
+LG=$(lvdisplay |grep "LV Path" |grep -v swap|awk '{print $3}')
+lvextend -L +$Size $LG
+if [ $? -ne 0 ]
+   then 
+       exit
+fi
+Type=$(df -hTP |grep root |awk '{print $2}')
+Type_Disk=ext4
+if [[ $Type == $Type_Disk ]]
+    then
+        resize2fs $LG
+else
+        xfs_growfs $LG
+fi
