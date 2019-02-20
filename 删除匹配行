@@ -1,0 +1,9 @@
+#!/bin/bash
+for i  in `ls *.conf`
+do
+   egrep *[2-9].test.com $i > a.txt
+   cat a.txt|while read line 
+   do
+     sed -i "/$line/d" $i
+   done
+done
